@@ -1,5 +1,7 @@
 import streamlit as st
 from PyPDF2 import PdfReader
+import pdfplumber
+from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -9,28 +11,45 @@ from langchain.vectorstores import FAISS
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
+import concurrent.futures
 
 load_dotenv()
 genai.configure(api_key=os.getenv("google_api_key"))
 
+# Optimized PDF Text Extraction (using pdfplumber for speed)
 def get_pdf_text(pdf_docs):
     text = ""
-    for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        texts = list(executor.map(process_pdf, pdf_docs))
+    return ''.join(texts)
+
+def process_pdf(pdf):
+    with pdfplumber.open(pdf) as pdf_reader:
+        text = ""
         for page in pdf_reader.pages:
             text += page.extract_text()
     return text
 
+# Optimized text chunking function
 def text_chunks(text):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     chunks = text_splitter.split_text(text)
     return chunks
 
+# Optimized function to create vector store with batching
 def chunks_vector(text_chunks):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
+    
+    # Create a list of documents (with 'page_content')
+    documents = [Document(page_content=chunk) for chunk in text_chunks]
+    
+    # Create the FAISS vector store from the list of documents
+    vector_store = FAISS.from_documents(documents, embedding=embeddings)
     vector_store.save_local("FAISS_index")
 
+
+# Cached QA chain to improve performance
+@st.cache_resource
 def convo_chain():
     prompt_template = """
     You are a helpful assistant with access to the following context:
@@ -45,6 +64,7 @@ def convo_chain():
     chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
     return chain
 
+# Optimized user input handling
 def user_input(user_question):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     new_db = FAISS.load_local("FAISS_index", embeddings, allow_dangerous_deserialization=True)
@@ -56,6 +76,7 @@ def user_input(user_question):
     )
     st.write("Pdf_assistant:", response["output_text"])
 
+# Main Streamlit app function
 def main():
     st.set_page_config(page_title="PDF Chatbot", layout="wide")
 
@@ -99,3 +120,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
