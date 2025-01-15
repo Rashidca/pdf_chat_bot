@@ -1,5 +1,5 @@
 langchain
-ipykernal
+ipykernel
 streamlit
 google-generativeai
 python-dotenv
