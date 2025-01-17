@@ -14,7 +14,11 @@ from dotenv import load_dotenv
 import concurrent.futures
 
 load_dotenv()
-genai.configure(api_key=os.getenv("google_api_key"))
+print(os.getenv("google_api_key")[:5])
+api_key = st.secrets["google_api_key"]  # This will work on Hugging Face
+os.environ['GOOGLE_API_KEY'] = api_key
+genai.configure(api_key=api_key)
+# genai.configure(api_key=os.getenv("google_api_key"))
 
 # Optimized PDF Text Extraction (using pdfplumber for speed)
 def get_pdf_text(pdf_docs):
@@ -39,17 +43,13 @@ def text_chunks(text):
 # Optimized function to create vector store with batching
 def chunks_vector(text_chunks):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    # st.write("working2.....")
     
     # Create a list of documents (with 'page_content')
     documents = [Document(page_content=chunk) for chunk in text_chunks]
-    # st.write("working3.....")
     
     # Create the FAISS vector store from the list of documents
     vector_store = FAISS.from_documents(documents, embedding=embeddings)
-    # st.write("working4.....")
     vector_store.save_local("FAISS_index")
-    # st.write("working5.....")
 
 
 # Cached QA chain to improve performance
@@ -102,7 +102,6 @@ def main():
         # Step 2: Creating vector store
         st.write("Step 2: Creating vector store...")
         chunks = text_chunks(pdf_text)
-        st.write("working1.....")
         chunks_vector(chunks)
         st.success("Vector store created successfully!")
         progress_bar.progress(2 / total_steps)
