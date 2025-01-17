@@ -98,6 +98,7 @@ def main():
         # Step 2: Creating vector store
         st.write("Step 2: Creating vector store...")
         chunks = text_chunks(pdf_text)
+        st.write("working1.....")
         chunks_vector(chunks)
         st.success("Vector store created successfully!")
         progress_bar.progress(2 / total_steps)
